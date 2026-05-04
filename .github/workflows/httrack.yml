@@ -27,7 +27,7 @@ jobs:
       - name: Create mirror directory
         run: mkdir -p mirror
 
-      - name: Mirror website with HTTrack (Enhanced)
+      - name: Mirror website with HTTrack (Corrected)
         run: |
           httrack "${{ github.event.inputs.url }}" \
             -O mirror \
@@ -40,9 +40,7 @@ jobs:
             --retries=5 \
             --timeout=30 \
             --keep-alive \
-            --extended-parsing=3 \
-            --mime-html \
-            --cached-delayed-type-check \
+            --extended-parsing \
             --disable-security-limits \
             -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
             +*.css +*.js +*.woff* +*.ttf +*.svg +*.png +*.jpg +*.jpeg +*.gif +*.webp +*.ico \
