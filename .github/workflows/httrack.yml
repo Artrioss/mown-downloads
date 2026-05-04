@@ -1,10 +1,10 @@
-name: Mirror with HTTrack (Stable)
+name: Mirror with HTTrack
 
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Website URL to mirror (e.g., https://appwrite.io/docs)'
+        description: 'Website URL to mirror'
         required: true
         default: 'https://appwrite.io/docs'
 
@@ -14,52 +14,87 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Install HTTrack
-        run: sudo apt-get update && sudo apt-get install -y httrack zip
+      # 1. نصب HTTrack و ابزارهای کمکی
+      - name: Install HTTrack and helpers
+        run: sudo apt-get update && sudo apt-get install -y httrack zip wget
 
-      - name: Restore mirror cache
+      # 2. بازگردانی کش (همان مسیر قبلی)
+      - name: Restore mirror cache (including hts-cache)
         uses: actions/cache@v4
         id: cache
         with:
           path: mirror
-          key: httrack-stable-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
+          key: httrack-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
 
+      # 3. ساخت پوشه mirror اگر وجود نداشته باشد
       - name: Create mirror directory
         run: mkdir -p mirror
 
-      - name: Mirror website with HTTrack (Stable & Tested)
+      # 4. عملیات آیینه‌ای با نسخه‌ی پیشرفته HTTrack
+      - name: Mirror website with Enhanced HTTrack
         run: |
           httrack "${{ github.event.inputs.url }}" \
             -O mirror \
             -N100 \
             -I0 \
-            --near \
-            --depth=3 \
-            --ext-depth=3 \
-            --sockets=8 \
+            --update \
+            --continue \
+            --near \                # فایل‌های CDN نزدیک
+            --depth=3 \             # عمق درخواستی تو
+            --ext-depth=2 \         # عمق لینک‌های خارجی (جادوی بقیه)
+            --max-rate=0 \
+            --disable-security-limits \
+            --sockets=16 \
             --retries=5 \
             --timeout=30 \
             --keep-alive \
-            -%P1 \
-            --disable-security-limits \
-            -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-            +*.css +*.js +*.woff* +*.ttf +*.svg +*.png +*.jpg +*.jpeg +*.gif +*.webp +*.ico \
-            -*.mp4 -*.avi -*.mkv -*.mov -*.zip -*.tar.gz -*.rar \
+            -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" \
             -v
 
+      # 5. پاک‌سازی فایل‌های موقت (مثل قبل)
       - name: Clean temporary HTTrack files
         run: |
           find mirror -name "*.gif" -delete 2>/dev/null || true
           rm -f mirror/hts-cache/* mirror/backblue.gif mirror/fade.gif mirror/index.html 2>/dev/null || true
 
+      # 6. مرحله‌ی طلایی: پردازش نهایی و ترمیم
+      - name: Post-Process – Fix missing assets, fonts, and code blocks
+        run: |
+          echo "🔧 Fixing CSS paths for icons/fonts..."
+          # تبدیل url(//cdn... به url(https://cdn...)
+          find mirror -type f -name '*.css' -exec sed -i 's|url(//|url(https://|g' {} \;
+          # تبدیل url(/asset... به url(../asset... (مسیر نسبی)
+          find mirror -type f -name '*.css' -exec sed -i 's|url(/|url(../|g' {} \;
+          
+          echo "🏷️  Adding <base> tag for React Router compatibility..."
+          # تگ base باعث می‌شود مسیرهای /about درست کار کنند
+          find mirror -type f -name '*.html' -exec sed -i '/<head>/a <base href="/">' {} \;
+          
+          echo "📦 Scanning for missing external resources (fonts/icons)..."
+          # همه‌ی ارجاع‌های url() هنوز شکسته را پیدا کن و از CDN اصلی بگیر
+          MISSING=$(find mirror -type f -name "*.css" -exec grep -ohP "url\(https?://[^)]+\)" {} \; | sed 's/url(\(.*\))/\1/' | sort -u)
+          if [ -n "$MISSING" ]; then
+            mkdir -p mirror/__assets
+            cd mirror/__assets
+            echo "$MISSING" | while read -r asset_url; do
+              echo "  Downloading: $asset_url"
+              wget -q --timeout=15 -U "Mozilla/5.0" "$asset_url" -nc 2>/dev/null || true
+            done
+            cd ../..
+          fi
+          
+          echo "💎 Post-processing complete. Mirror is as dynamic as possible."
+
+      # 7. فشرده‌سازی با نام‌گذاری زمانی
       - name: Compress site
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          zip -r "appwrite_docs_${TIMESTAMP}.zip" mirror/
+          zip -r "site_mirror_${TIMESTAMP}.zip" mirror/
 
+      # 8. بارگذاری آرتیفکت
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: appwrite-docs-stable-${{ github.run_id }}
-          path: appwrite_docs_*.zip
+          name: httrack-mirror-${{ github.run_id }}
+          path: site_mirror_*.zip
           retention-days: 7
