@@ -1,4 +1,4 @@
-name: Mirror Website (HTTrack)
+name: Mirror with HTTrack (fast + artifact)
 
 on:
   workflow_dispatch:
@@ -11,33 +11,51 @@ on:
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    timeout-minutes: 120
 
+    steps:
       - name: Install HTTrack
-        run: sudo apt-get update && sudo apt-get install -y httrack
+        run: sudo apt-get update && sudo apt-get install -y httrack zip
+
+      - name: Restore mirror cache (including hts-cache)
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: mirror
+          key: httrack-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
+
+      - name: Create mirror directory
+        run: mkdir -p mirror
 
       - name: Mirror website with HTTrack
         run: |
-          mkdir -p mirror
           httrack "${{ github.event.inputs.url }}" \
             -O mirror \
             -N100 \
             -I0 \
+            --update \
+            --continue \
             --near \
             --depth=2 \
-            --max-rate=200000 \
-            --disable-security-limits \
             --sockets=8 \
             --retries=3 \
-            --timeout=20 \
-            -F "Mozilla/5.0 (compatible; MirrorBot/1.0)" \
+            --timeout=15 \
+            -F "Mozilla/5.0 (compatible; MirrorBot/2.0)" \
             -v
 
-      - name: Commit and push changes
+      - name: Clean temporary HTTrack files
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add mirror/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Mirror updated: ${{ github.event.inputs.url }}" && git push)
+          find mirror -name "*.gif" -delete 2>/dev/null || true
+          rm -f mirror/hts-cache/* mirror/backblue.gif mirror/fade.gif mirror/index.html 2>/dev/null || true
+
+      - name: Compress site
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          zip -r "site_mirror_${TIMESTAMP}.zip" mirror/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: httrack-mirror-${{ github.run_id }}
+          path: site_mirror_*.zip
+          retention-days: 7
