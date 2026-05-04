@@ -1,5 +1,4 @@
-name: Mirror with HTTrack (fast + artifact)
-
+name: Mirror with HTTrack
 on:
   workflow_dispatch:
     inputs:
@@ -33,8 +32,6 @@ jobs:
             -O mirror \
             -N100 \
             -I0 \
-            --update \
-            --continue \
             --near \
             --depth=2 \
             --sockets=8 \
