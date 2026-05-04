@@ -1,9 +1,10 @@
 name: Mirror with HTTrack
+
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Website URL to mirror'
+        description: 'Website URL to mirror (e.g., https://appwrite.io/docs)'
         required: true
         default: 'https://appwrite.io/docs'
 
@@ -16,28 +17,37 @@ jobs:
       - name: Install HTTrack
         run: sudo apt-get update && sudo apt-get install -y httrack zip
 
-      - name: Restore mirror cache (including hts-cache)
+      - name: Restore mirror cache
         uses: actions/cache@v4
         id: cache
         with:
           path: mirror
-          key: httrack-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
+          key: httrack-enhanced-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
 
       - name: Create mirror directory
         run: mkdir -p mirror
 
-      - name: Mirror website with HTTrack
+      - name: Mirror website with HTTrack (Enhanced)
         run: |
           httrack "${{ github.event.inputs.url }}" \
             -O mirror \
             -N100 \
             -I0 \
             --near \
-            --depth=2 \
+            --depth=3 \
+            --ext-depth=3 \
             --sockets=8 \
-            --retries=3 \
-            --timeout=15 \
-            -F "Mozilla/5.0 (compatible; MirrorBot/2.0)" \
+            --retries=5 \
+            --timeout=30 \
+            --keep-alive \
+            --http2 \
+            --extended-parsing=3 \
+            --mime-html \
+            --cached-delayed-type-check \
+            --disable-security-limits \
+            -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            +*.css +*.js +*.woff* +*.ttf +*.svg +*.png +*.jpg +*.jpeg +*.gif +*.webp +*.ico \
+            -*.mp4 -*.avi -*.mkv -*.mov -*.zip -*.tar.gz -*.rar \
             -v
 
       - name: Clean temporary HTTrack files
@@ -48,11 +58,11 @@ jobs:
       - name: Compress site
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          zip -r "site_mirror_${TIMESTAMP}.zip" mirror/
+          zip -r "appwrite_docs_${TIMESTAMP}.zip" mirror/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: httrack-mirror-${{ github.run_id }}
-          path: site_mirror_*.zip
+          name: appwrite-docs-enhanced-${{ github.run_id }}
+          path: appwrite_docs_*.zip
           retention-days: 7
