@@ -1,4 +1,4 @@
-name: Mirror with HTTrack
+name: Mirror with HTTrack (Stable)
 
 on:
   workflow_dispatch:
@@ -22,12 +22,12 @@ jobs:
         id: cache
         with:
           path: mirror
-          key: httrack-enhanced-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
+          key: httrack-stable-mirror-${{ runner.os }}-${{ github.event.inputs.url }}
 
       - name: Create mirror directory
         run: mkdir -p mirror
 
-      - name: Mirror website with HTTrack (Corrected)
+      - name: Mirror website with HTTrack (Stable & Tested)
         run: |
           httrack "${{ github.event.inputs.url }}" \
             -O mirror \
@@ -40,7 +40,7 @@ jobs:
             --retries=5 \
             --timeout=30 \
             --keep-alive \
-            --extended-parsing \
+            -%P1 \
             --disable-security-limits \
             -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
             +*.css +*.js +*.woff* +*.ttf +*.svg +*.png +*.jpg +*.jpeg +*.gif +*.webp +*.ico \
@@ -60,6 +60,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: appwrite-docs-enhanced-${{ github.run_id }}
+          name: appwrite-docs-stable-${{ github.run_id }}
           path: appwrite_docs_*.zip
           retention-days: 7
