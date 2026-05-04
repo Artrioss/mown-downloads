@@ -1,0 +1,55 @@
+name: Mirror with wget (fast + artifact)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Website URL to mirror'
+        required: true
+        default: 'https://appwrite.io/docs'
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Install wget
+        run: sudo apt-get update && sudo apt-get install -y wget zip
+
+      - name: Restore mirror cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: mirror
+          key: mirror-${{ runner.os }}-${{ github.event.inputs.url }}
+
+      - name: Create mirror directory
+        run: mkdir -p mirror
+
+      - name: Mirror website (only new/changed files)
+        run: |
+          wget \
+            --mirror \
+            --page-requisites \
+            --adjust-extension \
+            --convert-links \
+            --wait=0 \
+            --no-verbose \
+            --directory-prefix=mirror \
+            --no-host-directories \
+            --user-agent="Mozilla/5.0 (compatible; MirrorBot/2.0)" \
+            --tries=3 \
+            --timeout=20 \
+            "${{ github.event.inputs.url }}"
+
+      - name: Compress site
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          zip -r "site_mirror_${TIMESTAMP}.zip" mirror/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-mirror-${{ github.run_id }}
+          path: site_mirror_*.zip
+          retention-days: 7
