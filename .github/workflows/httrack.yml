@@ -40,7 +40,6 @@ jobs:
             --retries=5 \
             --timeout=30 \
             --keep-alive \
-            --http2 \
             --extended-parsing=3 \
             --mime-html \
             --cached-delayed-type-check \
