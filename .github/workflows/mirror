@@ -1,0 +1,42 @@
+name: Mirror Website (wget)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Website URL to mirror'
+        required: true
+        default: 'https://appwrite.io/docs'
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install wget
+        run: sudo apt-get update && sudo apt-get install -y wget
+
+      - name: Mirror website with wget
+        run: |
+          mkdir -p mirror
+          wget \
+            --mirror \
+            --page-requisites \
+            --adjust-extension \
+            --convert-links \
+            --wait=1 \
+            --random-wait \
+            --limit-rate=200k \
+            --directory-prefix=mirror \
+            --no-host-directories \
+            --user-agent="Mozilla/5.0 (compatible; MirrorBot/1.0)" \
+            "${{ github.event.inputs.url }}"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mirror/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Mirror updated: ${{ github.event.inputs.url }}" && git push)
